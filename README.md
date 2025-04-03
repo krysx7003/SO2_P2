@@ -1,1 +1,1 @@
-# SO2_P2
+# Systemy operacyjne 2
