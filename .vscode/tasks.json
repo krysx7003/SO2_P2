@@ -8,7 +8,7 @@
                 "-S",
                 ".",
                 "-B",
-                "build",
+                "build/debug",
                 "-G",
                 "Unix Makefiles",
                 "-DCMAKE_BUILD_TYPE=Debug"
@@ -24,7 +24,7 @@
                 "-S",
                 ".",
                 "-B",
-                "build",
+                "build/release",
                 "-G",
                 "Unix Makefiles"
             ],
@@ -37,7 +37,7 @@
             "command": "cmake",
             "args": [
                 "--build",
-                "build"
+                "build/release"
             ],
             "group": {
                 "kind": "build",
@@ -62,7 +62,7 @@
             },
             "problemMatcher": [],
             "options": {
-                "cwd": "${workspaceFolder}/build"
+                "cwd": "${workspaceFolder}/build/release"
             },
         },
         {
@@ -86,7 +86,7 @@
             "isBackground": false,
             "presentation": {
                 "reveal": "always"
-            }
+            },
         }
     ],
     "version": "2.0.0"

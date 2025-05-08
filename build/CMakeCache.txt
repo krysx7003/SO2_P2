@@ -148,7 +148,7 @@ CMAKE_PROJECT_DESCRIPTION:STATIC=
 CMAKE_PROJECT_HOMEPAGE_URL:STATIC=
 
 //Value Computed by CMake
-CMAKE_PROJECT_NAME:STATIC=Server
+CMAKE_PROJECT_NAME:STATIC=server
 
 //Path to a program.
 CMAKE_RANLIB:FILEPATH=/usr/bin/ranlib
@@ -232,6 +232,24 @@ Server_IS_TOP_LEVEL:STATIC=ON
 
 //Value Computed by CMake
 Server_SOURCE_DIR:STATIC=/home/ratthew/Pulpit/SO2_P2
+
+//Value Computed by CMake
+client_BINARY_DIR:STATIC=/home/napnap/HDD/Studia/SO2/SO2_P2/build
+
+//Value Computed by CMake
+client_IS_TOP_LEVEL:STATIC=ON
+
+//Value Computed by CMake
+client_SOURCE_DIR:STATIC=/home/napnap/HDD/Studia/SO2/SO2_P2
+
+//Value Computed by CMake
+server_BINARY_DIR:STATIC=/home/napnap/HDD/Studia/SO2/SO2_P2/build
+
+//Value Computed by CMake
+server_IS_TOP_LEVEL:STATIC=ON
+
+//Value Computed by CMake
+server_SOURCE_DIR:STATIC=/home/napnap/HDD/Studia/SO2/SO2_P2
 
 
 ########################
