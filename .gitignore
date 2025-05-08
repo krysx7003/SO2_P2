@@ -1,0 +1,11 @@
+.cmake/
+CMakeFiles/
+cmake_install.cmake
+CMakeCache.txt
+compile_commands.json
+Makefile
+*.aux
+*.log
+*.synctex.gz
+*.toc
+*.minted

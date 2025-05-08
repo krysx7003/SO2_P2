@@ -8,7 +8,7 @@
                 "-S",
                 ".",
                 "-B",
-                "build/debug",
+                "build",
                 "-G",
                 "Unix Makefiles",
                 "-DCMAKE_BUILD_TYPE=Debug"
@@ -24,7 +24,7 @@
                 "-S",
                 ".",
                 "-B",
-                "build/release",
+                "build",
                 "-G",
                 "Unix Makefiles"
             ],
@@ -37,7 +37,7 @@
             "command": "cmake",
             "args": [
                 "--build",
-                "build/release"
+                "build"
             ],
             "group": {
                 "kind": "build",
@@ -51,7 +51,7 @@
             "command": "gnome-terminal",
             "args": [
                 "--", "bash", "-c",
-                "./${fileBasenameNoExtension} ${input:programArgs}",
+                "./${fileBasenameNoExtension}",
             ],
             "dependsOn": [
                 "CMake Configure Release","CMake Build"
@@ -62,7 +62,7 @@
             },
             "problemMatcher": [],
             "options": {
-                "cwd": "${workspaceFolder}/build/release"
+                "cwd": "${workspaceFolder}/build"
             },
         },
         {
@@ -87,14 +87,6 @@
             "presentation": {
                 "reveal": "always"
             }
-        }
-    ],
-    "inputs": [
-        {
-            "id": "programArgs",
-            "type": "promptString",
-            "description": "Enter arguments for the program",
-            "default": "5"
         }
     ],
     "version": "2.0.0"
