@@ -6,7 +6,6 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/debug/${fileBasenameNoExtension}", 
-            "args": ["${input:programArgs}"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/build",  
             "environment": [],
