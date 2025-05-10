@@ -240,16 +240,16 @@ client_BINARY_DIR:STATIC=/home/napnap/HDD/Studia/SO2/SO2_P2/build
 client_IS_TOP_LEVEL:STATIC=ON
 
 //Value Computed by CMake
-client_SOURCE_DIR:STATIC=/home/napnap/HDD/Studia/SO2/SO2_P2
+client_SOURCE_DIR:STATIC=/home/napnap/Studia/SO2/SO2_P2
 
 //Value Computed by CMake
-server_BINARY_DIR:STATIC=/home/napnap/HDD/Studia/SO2/SO2_P2/build
+server_BINARY_DIR:STATIC=/home/napnap/Studia/SO2/SO2_P2/build
 
 //Value Computed by CMake
 server_IS_TOP_LEVEL:STATIC=ON
 
 //Value Computed by CMake
-server_SOURCE_DIR:STATIC=/home/napnap/HDD/Studia/SO2/SO2_P2
+server_SOURCE_DIR:STATIC=/home/napnap/Studia/SO2/SO2_P2
 
 
 ########################
