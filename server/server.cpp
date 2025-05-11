@@ -7,6 +7,10 @@
 #include <queue>
 #include <mutex>
 #include <condition_variable>
+#include <signal.h>
+#include <chrono>
+#include <sstream>
+#include <iomanip>
 #include "client.h"
 
 using namespace std;
@@ -19,19 +23,21 @@ using namespace std;
 
 pthread_t thread_pool[THREAD_POOL_SIZE];
 queue<client> cilent_pool;
-mutex out,que;
+mutex out,que,logT;
 condition_variable condition_var;
 bool new_client = false;
 
-string arrayToString( char* arr, int size );
 void check( int res, const char* message );
 void waitForExit();
 void* thread_func(void* args);
 void handleConnection(client cilentSocket);
+string logTime();
+void logEvent(string message);
+void cleanup();
 
 int main(){
     int serverSocket, clientSocket;
-    cout<< "Server starting\n";
+    logEvent( "Server starting" );
     
     for( int i = 0; i < THREAD_POOL_SIZE; i++ ){
         pthread_create( &thread_pool[i], NULL, thread_func, NULL);
@@ -51,9 +57,7 @@ int main(){
 
     check( listen( serverSocket, SERVER_BACKLOG ) , "Listen failed" );
 
-    out.lock();
-    cout << "Waiting for connections...\n";
-    out.unlock();
+    logEvent( "Waiting for connections..." );
 
     while(true){
         check( ( clientSocket = accept( serverSocket, nullptr, nullptr ) ), "Accept failed" );
@@ -71,46 +75,66 @@ int main(){
 
     close(clientSocket);
     close(serverSocket);
-
+    cleanup();
     waitForExit();
 
     return 0;
 }
 
-string arrayToString( char* arr, int size ){
-    string res = "";
-    for( int i = 0; i<size; i++ ){
-        res = res + arr[i];
+string logTime(){
+    auto now = chrono::system_clock::now();
+    time_t time = chrono::system_clock::to_time_t(now);
+    tm tm = *localtime(&time);
+    ostringstream oss;
+    oss << "[" << std::put_time(&tm, "%H:%M:%S") << "]";
+    return oss.str(); 
+}
+
+void logEvent(string message){
+    lock_guard<mutex> lock(out);
+    cout<< logTime() << message << "\n" << flush;
+}
+
+void signalHandler(int signum) {
+    pthread_exit(nullptr); 
+}
+
+void cleanup() {
+    for (auto thread : thread_pool ) {
+        pthread_kill(thread,SIGTERM);
     }
-    return res;
+    for (auto thread : thread_pool ) {
+        pthread_join(thread, nullptr);
+    }
+    logEvent("Threads stopped");
 }
 
 void check( int res, const char* message ){
     if( res == SOCKET_ERROR ){
-        { 
-            lock_guard<mutex> lock(que);
-            cout<< message << ". Exiting...\n";
-        }
+        string errorMessage = string(message) + ". Exiting...";
+        logEvent( errorMessage );
+        cleanup();
         waitForExit();
-        exit(-1);
+        exit( 1 );
     }
 }
 
 void waitForExit(){
-    cout<< "Press ENTER to exit...\n";
+    logEvent( "Press ENTER to exit..." );
     cin.get();
 }
 
 void* thread_func(void* args){
     while(true){
         client currClient;
+        signal(SIGTERM, signalHandler); 
         {
             unique_lock<mutex> lock(que);
             condition_var.wait( lock, [] { return new_client;  } );
             if( !cilent_pool.empty() ){
                 currClient = cilent_pool.front();
                 cilent_pool.pop();
-                cout<< "Connecting to client: " + currClient.name + "\n"<< flush;
+                logEvent( "Connecting to client: " + currClient.name );
             }
             new_client = false;
         }
@@ -127,20 +151,20 @@ void handleConnection( client currClient ){
         buffer[bytesReceived] = '\0';
         if( bytesReceived == -1 ){
             lock_guard<mutex> lock(que);
-            cout<< "Recive error\n";
+            logEvent( "Recive error" );
         }else{
-            // FIXME - Potrzebne podczas testów z bash nc. Zamienić na 
-            // if(data == "\\exit"){
+            //TODO - When starts with [request_file] send file back 
+            //FIXME - Potrzebne podczas testów z bash nc. Zamienić na 
+            // if(data == "[exit]"){
             string data(buffer);
             if( data.rfind("\\exit") == 0 || bytesReceived == 0 ){
                 lock_guard<mutex> lock(que);
-                cout<< "Client " + currClient.name + " requested exit\n";
+                logEvent( "Disconnecting: " + currClient.name );
                 close(currClient.socket);
                 break;
             }
-            //TODO - Add timestamp
             lock_guard<mutex> lock(que);
-            cout << "Message from " + currClient.name + " : " << buffer << flush;
+            logEvent(currClient.name + ": " + buffer);
             //TODO - Send Message to other clients
             //Save message to conversation log
             //If target client/clients is online send the message
