@@ -1,3 +1,4 @@
+#include <fstream>
 #include <iostream>
 #include <sys/socket.h>
 #include <netinet/in.h> 
@@ -11,8 +12,11 @@
 #include <chrono>
 #include <sstream>
 #include <iomanip>
+#include <filesystem> 
+#include "json.hpp"
 #include "client.h"
 
+using json = nlohmann::json;
 using namespace std;
 
 #define SOCKET_ERROR (-1)
@@ -20,10 +24,11 @@ using namespace std;
 #define SERVER_BACKLOG 20
 #define BUFFER_SIZE 1024
 #define THREAD_POOL_SIZE 10
+#define JSON_FILE filesystem::absolute("../users/users.json").string()
 
 pthread_t thread_pool[THREAD_POOL_SIZE];
 queue<client> cilent_pool;
-mutex out,que,logT;
+mutex out,que,logT,jsonMtx;
 condition_variable condition_var;
 bool new_client = false;
 
@@ -34,6 +39,8 @@ void handleConnection(client cilentSocket);
 string logTime();
 void logEvent(string message);
 void cleanup();
+string reciveMsg(int clientSocket);
+json findUser( string name, json users );
 
 int main(){
     int serverSocket, clientSocket;
@@ -60,14 +67,41 @@ int main(){
     logEvent( "Waiting for connections..." );
 
     while(true){
+
         check( ( clientSocket = accept( serverSocket, nullptr, nullptr ) ), "Accept failed" );
-        //TODO - Client sends initiall message containing username
-        //Check list of existing users (json???)
-        //If name exists in list give saved id 
-        //Else generate and give unique id
+        string clientName = reciveMsg(clientSocket);
         {
+            lock_guard<mutex> lock(jsonMtx);
+            ifstream in_file( JSON_FILE );
+            // logEvent( JSON_FILE );
+            json users; 
+            clientName.erase(std::remove(clientName.begin(), clientName.end(), '\n'), clientName.end());
+            if(in_file.is_open()){
+                in_file>>users;
+                in_file.close();
+                json user = findUser( clientName, users );
+                if( user != nullptr ){
+                    if( !user["conversation_id"].is_null() ){
+                        //Send any conversation needed
+                    }
+                }else{
+                    json new_user = {
+                        { "name", clientName },
+                        { "conversation_id", {} }
+                    };
+                    users.push_back( new_user );
+                    ofstream of_file( JSON_FILE );
+                    of_file << users.dump(4);
+                    of_file.close();
+                }
+            }else{
+                logEvent("Could not open config file!");
+                clientName = "";
+            }
+        }
+        if( clientName != "" ){
             lock_guard<mutex> lock(que);
-            cilent_pool.push( { clientSocket, "Test", 0 } );
+            cilent_pool.push( { clientSocket, clientName, 0 } );
             new_client = true;
             condition_var.notify_one();
         }
@@ -79,6 +113,15 @@ int main(){
     waitForExit();
 
     return 0;
+}
+
+json findUser( string name, json users ){
+    for( const auto& user : users){
+        if( user["name"] == name ){
+            return user;
+        }
+    }
+    return nullptr;
 }
 
 string logTime(){
@@ -144,30 +187,38 @@ void* thread_func(void* args){
     }
 }
 
+string reciveMsg(int clientSocket){
+    char buffer[BUFFER_SIZE] = {0};
+    ssize_t bytesReceived = recv( clientSocket, buffer, sizeof(buffer) - 1, 0 );
+    buffer[bytesReceived] = '\0';
+    if( bytesReceived == -1 ){
+        lock_guard<mutex> lock(que);
+        close( clientSocket );
+        logEvent( "Recive error" );
+        return "";
+    }else{
+        return buffer;    
+    }
+}
+
 void handleConnection( client currClient ){
     while(true){
-        char buffer[BUFFER_SIZE] = {0};
-        ssize_t bytesReceived = recv( currClient.socket, buffer, sizeof(buffer) - 1, 0 );
-        buffer[bytesReceived] = '\0';
-        if( bytesReceived == -1 ){
+        string data = reciveMsg(currClient.socket);
+        //TODO - When starts with \\request_file send file back 
+        //TODO - When starts with \\send {conversation id} append the conversation log and send to other clients
+        //TODO - When starts with \\create {client_names} create new conversation and add other clients
+        //FIXME - Potrzebne podczas testów z bash nc. Zamienić na 
+        // if(data == "[exit]"){
+        if( data.rfind("\\exit") == 0 ){
             lock_guard<mutex> lock(que);
-            logEvent( "Recive error" );
-        }else{
-            //TODO - When starts with [request_file] send file back 
-            //FIXME - Potrzebne podczas testów z bash nc. Zamienić na 
-            // if(data == "[exit]"){
-            string data(buffer);
-            if( data.rfind("\\exit") == 0 || bytesReceived == 0 ){
-                lock_guard<mutex> lock(que);
-                logEvent( "Disconnecting: " + currClient.name );
-                close(currClient.socket);
-                break;
-            }
-            lock_guard<mutex> lock(que);
-            logEvent(currClient.name + ": " + buffer);
-            //TODO - Send Message to other clients
-            //Save message to conversation log
-            //If target client/clients is online send the message
+            logEvent( "Disconnecting: " + currClient.name );
+            close(currClient.socket);
+            break;
         }
+        lock_guard<mutex> lock(que);
+        logEvent(currClient.name + ": " + data);
+        //TODO - Send Message to other clients
+        //Save message to conversation log
+        //If target client/clients is online send the message
     }
 }   
