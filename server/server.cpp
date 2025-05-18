@@ -20,7 +20,7 @@ using json = nlohmann::json;
 using namespace std;
 
 #define SOCKET_ERROR (-1)
-#define SERVER_SOCKET 8081
+#define SERVER_SOCKET 8080
 #define SERVER_BACKLOG 20
 #define BUFFER_SIZE 1024
 #define THREAD_POOL_SIZE 10
@@ -43,6 +43,7 @@ void logEvent(string message);
 void cleanup();
 string reciveMsg(int clientSocket);
 json& findUser( string name, json& users );
+void sendJson( string name, client currClient );
 
 int main(){
     int serverSocket, clientSocket;
@@ -70,24 +71,26 @@ int main(){
     while(true){
         check( ( clientSocket = accept( serverSocket, nullptr, nullptr ) ), "Accept failed" );
         string clientName = reciveMsg(clientSocket);
+        client newClient = { clientSocket, clientName };
         {
             lock_guard<mutex> lock(jsonMtx);
             ifstream in_file( USER_FILE );
             json usersJson; 
-            clientName.erase(std::remove(clientName.begin(), clientName.end(), '\n'), clientName.end());
+            newClient.name.erase(std::remove(newClient.name.begin(), newClient.name.end(), '\n'), newClient.name.end());
             if(in_file.good()){
                 in_file>>usersJson;
                 in_file.close();
-                json& user = findUser( clientName, usersJson );
+                json& user = findUser( newClient.name, usersJson );
                 if( user != nullptr ){
                     if( !user["conversation_id"].is_null() ){
                         for (const auto& conv_id : user["conversation_id"]) {
                             int id = conv_id.get<int>();
+                            sendJson( to_string(id), newClient );
                         }
                     }
                 }else{
                     json new_user = {
-                        { "name", clientName },
+                        { "name", newClient.name },
                         { "conversation_id", {} }
                     };
                     usersJson.push_back( new_user );
@@ -97,12 +100,12 @@ int main(){
                 }
             }else{
                 logEvent("Could not open config file!");
-                clientName = "";
+                newClient.name = "";
             }
         }
-        if( clientName != "" ){
+        if( newClient.name != "" ){
             lock_guard<mutex> lock(que);
-            cilent_pool.push( { clientSocket, clientName, 0 } );
+            cilent_pool.push( newClient );
             new_client = true;
             condition_var.notify_one();
         }
@@ -243,6 +246,7 @@ void handleConnection( client currClient ){
             
         } else if( data.rfind("\\create") == 0 ){
             lock_guard<mutex> lock(jsonMtx);
+            string response = to_string(-1);
 
             string str;
             vector<string> users;
@@ -260,6 +264,7 @@ void handleConnection( client currClient ){
                 json data;
                 state_in >> data;
                 id = data["id"].get<int>();
+                response = to_string(id);
             }
             
             json new_conversation = {
@@ -270,7 +275,7 @@ void handleConnection( client currClient ){
             ofstream of_file( CONV_DIR + "/" + to_string( id ) + ".json" );
             of_file << new_conversation.dump(4);
             of_file.close();
-            logEvent( "Created new conversation with id: " + id );
+            logEvent( "Created new conversation with id: " + to_string( id ) );
             
             ifstream in_file( USER_FILE );
             json usersJson; 
@@ -293,14 +298,15 @@ void handleConnection( client currClient ){
             }
             logEvent( "Updated users.json" );
             
-            json data;
-            data["id"] = id++;
+            id++;
+            json state_data;
+            state_data["id"] = id;
             ofstream state_of( STATE_FILE );
-            state_of << data.dump(4);
+            state_of << state_data.dump(4);
             state_of.close();
-            logEvent( "Updated state.json with id: " + id );
-
-            //TODO - Send back 0 if func was correct 1 if not then conversation id 
+            logEvent( "Updated state.json with id: " + to_string( id ) );
+            check( send( currClient.socket , response.c_str(), response.length(), 0 ), "Send failed" );
+            //TODO - Notify other clients
 
         } else if( data.rfind("\\exit") == 0 ){
             lock_guard<mutex> lock(que);
@@ -312,4 +318,19 @@ void handleConnection( client currClient ){
         data.erase(std::remove(data.begin(), data.end(), '\n'), data.end());
         logEvent(currClient.name + ": " + data);
     }
-}   
+}
+
+void sendJson( string name, client currClient ){
+    ifstream in_file( CONV_DIR + "/" + name + ".json" );
+    json conversation;
+    if( in_file.good() ){
+        in_file >> conversation;
+        in_file.close();
+        string conversation_str = conversation.dump(4);
+        conversation_str = conversation_str;
+        check( send( currClient.socket , conversation_str.c_str(), conversation_str.length(), 0 ), "Send failed" );
+        logEvent( "Sent file: " + name + ".json to client: " + currClient.name );
+    }else{
+        logEvent( "Failed to open file" );
+    }
+}
