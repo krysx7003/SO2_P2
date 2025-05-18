@@ -7,7 +7,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/build/debug/${fileBasenameNoExtension}", 
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/build",  
+            "cwd": "${workspaceFolder}/build/debug",  
             "environment": [],
             "externalConsole": true,  
             "MIMode": "gdb",  
@@ -21,13 +21,5 @@
             "preLaunchTask": "Build and Debug",  
             "miDebuggerPath": "/usr/bin/gdb" 
         }
-    ],
-    "inputs": [
-        {
-            "id": "programArgs",
-            "type": "promptString",
-            "description": "Enter arguments for the program",
-            "default": "5"
-        }
-    ]
+    ]  
 }
