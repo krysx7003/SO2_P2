@@ -20,11 +20,13 @@ using json = nlohmann::json;
 using namespace std;
 
 #define SOCKET_ERROR (-1)
-#define SERVER_SOCKET 8080
+#define SERVER_SOCKET 8081
 #define SERVER_BACKLOG 20
 #define BUFFER_SIZE 1024
 #define THREAD_POOL_SIZE 10
-#define JSON_FILE filesystem::absolute("../users/users.json").string()
+#define USER_FILE filesystem::absolute("../data/users.json").string()
+#define CONV_DIR filesystem::absolute("../data/conversations").string()
+#define STATE_FILE filesystem::absolute("../data/state.json").string()
 
 pthread_t thread_pool[THREAD_POOL_SIZE];
 queue<client> cilent_pool;
@@ -40,7 +42,7 @@ string logTime();
 void logEvent(string message);
 void cleanup();
 string reciveMsg(int clientSocket);
-json findUser( string name, json users );
+json& findUser( string name, json& users );
 
 int main(){
     int serverSocket, clientSocket;
@@ -50,7 +52,6 @@ int main(){
         pthread_create( &thread_pool[i], NULL, thread_func, NULL);
     }
 
-    
     check( ( serverSocket = socket( AF_INET, SOCK_STREAM, 0 ) ),
              "Socket creation failed!\n" );
     
@@ -67,31 +68,31 @@ int main(){
     logEvent( "Waiting for connections..." );
 
     while(true){
-
         check( ( clientSocket = accept( serverSocket, nullptr, nullptr ) ), "Accept failed" );
         string clientName = reciveMsg(clientSocket);
         {
             lock_guard<mutex> lock(jsonMtx);
-            ifstream in_file( JSON_FILE );
-            // logEvent( JSON_FILE );
-            json users; 
+            ifstream in_file( USER_FILE );
+            json usersJson; 
             clientName.erase(std::remove(clientName.begin(), clientName.end(), '\n'), clientName.end());
-            if(in_file.is_open()){
-                in_file>>users;
+            if(in_file.good()){
+                in_file>>usersJson;
                 in_file.close();
-                json user = findUser( clientName, users );
+                json& user = findUser( clientName, usersJson );
                 if( user != nullptr ){
                     if( !user["conversation_id"].is_null() ){
-                        //Send any conversation needed
+                        for (const auto& conv_id : user["conversation_id"]) {
+                            int id = conv_id.get<int>();
+                        }
                     }
                 }else{
                     json new_user = {
                         { "name", clientName },
                         { "conversation_id", {} }
                     };
-                    users.push_back( new_user );
-                    ofstream of_file( JSON_FILE );
-                    of_file << users.dump(4);
+                    usersJson.push_back( new_user );
+                    ofstream of_file( USER_FILE );
+                    of_file << usersJson.dump(4);
                     of_file.close();
                 }
             }else{
@@ -115,13 +116,14 @@ int main(){
     return 0;
 }
 
-json findUser( string name, json users ){
-    for( const auto& user : users){
+json& findUser( string name, json& users ){
+    for( auto& user : users){
         if( user["name"] == name ){
             return user;
         }
     }
-    return nullptr;
+    static json nullJson = nullptr;
+    return nullJson;
 }
 
 string logTime(){
@@ -204,21 +206,110 @@ string reciveMsg(int clientSocket){
 void handleConnection( client currClient ){
     while(true){
         string data = reciveMsg(currClient.socket);
-        //TODO - When starts with \\request_file send file back 
-        //TODO - When starts with \\send {conversation id} append the conversation log and send to other clients
-        //TODO - When starts with \\create {client_names} create new conversation and add other clients
         //FIXME - Potrzebne podczas testów z bash nc. Zamienić na 
         // if(data == "[exit]"){
-        if( data.rfind("\\exit") == 0 ){
+        if( data.rfind("\\send") == 0 ){
+            lock_guard<mutex> lock(jsonMtx);
+            string str;
+            stringstream ss(data);
+            //Skip \send command
+            getline(ss,str,' ');
+            getline(ss,str,' ');
+            int id = stoi(str);
+            string messageText;
+            getline( ss, messageText );
+
+            ifstream in_file( CONV_DIR + "/" + to_string( id ) + ".json" );
+            json conversation;
+            if( in_file.good() ){
+                in_file >> conversation;
+                in_file.close();
+                if( conversation["messages_log"].is_null() ){
+                    conversation["messages_log"] = json::array();
+                }
+                json message = {
+                    { "sender", currClient.name },
+                    { "timestamp", logTime() },
+                    { "text", messageText }
+                };
+                
+                conversation["messages_log"].push_back( message );
+                
+                ofstream of_file( CONV_DIR + "/" + to_string( id ) + ".json" );
+                of_file << conversation.dump(4);
+                of_file.close();
+            }
+            //TODO - Notify other clients
+            
+        } else if( data.rfind("\\create") == 0 ){
+            lock_guard<mutex> lock(jsonMtx);
+
+            string str;
+            vector<string> users;
+            stringstream ss(data);
+            //Skip \create command
+            getline(ss,str,' ');
+            while ( getline(ss,str,' ') ){
+                str.erase(std::remove(str.begin(), str.end(), '\n'), str.end());
+                users.push_back(str);
+            }
+            int id = -1;
+
+            ifstream state_in( STATE_FILE );            
+            if ( state_in.good() ){
+                json data;
+                state_in >> data;
+                id = data["id"].get<int>();
+            }
+            
+            json new_conversation = {
+                { "id", id },
+                { "users", users },
+                { "messages_log", {} }
+            };
+            ofstream of_file( CONV_DIR + "/" + to_string( id ) + ".json" );
+            of_file << new_conversation.dump(4);
+            of_file.close();
+            logEvent( "Created new conversation with id: " + id );
+            
+            ifstream in_file( USER_FILE );
+            json usersJson; 
+            if(in_file.good()){
+                in_file>>usersJson;
+                in_file.close();
+                for( string userName : users ){
+                    json& user = findUser( userName, usersJson );
+                    if( user == nullptr){
+                        continue;
+                    }
+                    if( user["conversation_id"].is_null() ){
+                        user["conversation_id"] = json::array();
+                    }
+                    user["conversation_id"].push_back(id);
+                }
+                ofstream of_file( USER_FILE );
+                of_file << usersJson.dump(4);
+                of_file.close();
+            }
+            logEvent( "Updated users.json" );
+            
+            json data;
+            data["id"] = id++;
+            ofstream state_of( STATE_FILE );
+            state_of << data.dump(4);
+            state_of.close();
+            logEvent( "Updated state.json with id: " + id );
+
+            //TODO - Send back 0 if func was correct 1 if not then conversation id 
+
+        } else if( data.rfind("\\exit") == 0 ){
             lock_guard<mutex> lock(que);
             logEvent( "Disconnecting: " + currClient.name );
             close(currClient.socket);
             break;
         }
         lock_guard<mutex> lock(que);
+        data.erase(std::remove(data.begin(), data.end(), '\n'), data.end());
         logEvent(currClient.name + ": " + data);
-        //TODO - Send Message to other clients
-        //Save message to conversation log
-        //If target client/clients is online send the message
     }
 }   
