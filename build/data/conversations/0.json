@@ -10,6 +10,11 @@
             "sender": "Test1",
             "text": "Testowanie strona 2",
             "timestamp": "[23:36:03]"
+        },
+        {
+            "sender": "Test1",
+            "text": "Test Test",
+            "timestamp": "[21:21:25]"
         }
     ],
     "users": [

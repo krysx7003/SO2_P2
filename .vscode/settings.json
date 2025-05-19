@@ -4,6 +4,9 @@
         "string": "cpp",
         "iosfwd": "cpp",
         "queue": "cpp",
-        "mutex": "cpp"
+        "mutex": "cpp",
+        "fstream": "cpp",
+        "chrono": "cpp",
+        "typeinfo": "cpp"
     }
 }
