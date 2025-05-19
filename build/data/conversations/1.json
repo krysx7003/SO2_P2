@@ -1,0 +1,19 @@
+{
+    "id": 1,
+    "messages_log": [
+        {
+            "sender": "Test1",
+            "text": "Test12334",
+            "timestamp": "[21:34:55]"
+        },
+        {
+            "sender": "Test",
+            "text": "Response123454",
+            "timestamp": "[21:35:14]"
+        }
+    ],
+    "users": [
+        "Test1",
+        "Test"
+    ]
+}

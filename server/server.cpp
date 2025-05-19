@@ -30,6 +30,7 @@ using namespace std;
 
 pthread_t thread_pool[THREAD_POOL_SIZE];
 queue<client> cilent_pool;
+vector<client> client_table;
 mutex out,que,logT,jsonMtx;
 condition_variable condition_var;
 bool new_client = false;
@@ -44,6 +45,7 @@ void cleanup();
 string reciveMsg(int clientSocket);
 json& findUser( string name, json& users );
 void sendJson( string name, client currClient );
+void sendMessage( string message, vector<string> names );
 
 int main(){
     int serverSocket, clientSocket;
@@ -134,7 +136,11 @@ string logTime(){
     time_t time = chrono::system_clock::to_time_t(now);
     tm tm = *localtime(&time);
     ostringstream oss;
-    oss << "[" << std::put_time(&tm, "%H:%M:%S") << "]";
+    oss << "[" 
+        << std::put_time(&tm, "%d:%m:%Y")
+        << "|"    
+        << std::put_time(&tm, "%H:%M:%S") 
+        << "]";
     return oss.str(); 
 }
 
@@ -182,6 +188,8 @@ void* thread_func(void* args){
             if( !cilent_pool.empty() ){
                 currClient = cilent_pool.front();
                 cilent_pool.pop();
+                //Ehhhhhhhh
+                client_table.push_back(currClient);
                 logEvent( "Connecting to client: " + currClient.name );
             }
             new_client = false;
@@ -209,8 +217,7 @@ string reciveMsg(int clientSocket){
 void handleConnection( client currClient ){
     while(true){
         string data = reciveMsg(currClient.socket);
-        //FIXME - Potrzebne podczas testów z bash nc. Zamienić na 
-        // if(data == "[exit]"){
+        vector<string> client_names;
         if( data.rfind("\\send") == 0 ){
             lock_guard<mutex> lock(jsonMtx);
             string str;
@@ -223,14 +230,21 @@ void handleConnection( client currClient ){
             getline( ss, messageText );
 
             ifstream in_file( CONV_DIR + "/" + to_string( id ) + ".json" );
-            json conversation;
+            json conversation, message;
+
             if( in_file.good() ){
                 in_file >> conversation;
                 in_file.close();
                 if( conversation["messages_log"].is_null() ){
                     conversation["messages_log"] = json::array();
                 }
-                json message = {
+                for ( auto& user : conversation["users"]) {
+                    str = user.get<string>();
+                    if( str != currClient.name ){
+                        client_names.push_back( str );
+                    }
+                }
+                message = {
                     { "sender", currClient.name },
                     { "timestamp", logTime() },
                     { "text", messageText }
@@ -242,8 +256,10 @@ void handleConnection( client currClient ){
                 of_file << conversation.dump(4);
                 of_file.close();
             }
-            //TODO - Notify other clients
-            
+
+            string message_str = message.dump(4);
+            sendMessage( message_str, client_names );
+
         } else if( data.rfind("\\create") == 0 ){
             lock_guard<mutex> lock(jsonMtx);
             string response = to_string(-1);
@@ -258,13 +274,18 @@ void handleConnection( client currClient ){
                 users.push_back(str);
             }
             int id = -1;
+            
+            //Client list must start with currClient.name
+            if( users[0] != currClient.name ){
+                continue;
+            }
 
             ifstream state_in( STATE_FILE );            
             if ( state_in.good() ){
                 json data;
                 state_in >> data;
                 id = data["id"].get<int>();
-                response = to_string(id);
+                response = "\\new_conversation " + to_string(id);
             }
             
             json new_conversation = {
@@ -276,7 +297,7 @@ void handleConnection( client currClient ){
             of_file << new_conversation.dump(4);
             of_file.close();
             logEvent( "Created new conversation with id: " + to_string( id ) );
-            
+
             ifstream in_file( USER_FILE );
             json usersJson; 
             if(in_file.good()){
@@ -306,12 +327,22 @@ void handleConnection( client currClient ){
             state_of.close();
             logEvent( "Updated state.json with id: " + to_string( id ) );
             check( send( currClient.socket , response.c_str(), response.length(), 0 ), "Send failed" );
-            //TODO - Notify other clients
+            users.erase( users.begin() );
+
+            sendMessage( response, users );
 
         } else if( data.rfind("\\exit") == 0 ){
             lock_guard<mutex> lock(que);
             logEvent( "Disconnecting: " + currClient.name );
             close(currClient.socket);
+
+            for (auto it = client_table.begin(); it != client_table.end(); ) {
+                if (it->name == currClient.name) {
+                    it = client_table.erase(it);
+                } else {
+                    ++it;
+                }
+            }
             break;
         }
         lock_guard<mutex> lock(que);
@@ -327,10 +358,19 @@ void sendJson( string name, client currClient ){
         in_file >> conversation;
         in_file.close();
         string conversation_str = conversation.dump(4);
-        conversation_str = conversation_str;
         check( send( currClient.socket , conversation_str.c_str(), conversation_str.length(), 0 ), "Send failed" );
         logEvent( "Sent file: " + name + ".json to client: " + currClient.name );
     }else{
         logEvent( "Failed to open file" );
+    }
+}
+
+void sendMessage( string message, vector<string> names ){
+    for( client connected : client_table ){
+        for( string name : names ){
+            if( connected.name == name ){
+                check( send( connected.socket, message.c_str(), message.length(), 0 ), "Send failed" );
+            }            
+        }
     }
 }
