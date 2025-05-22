@@ -1,80 +1,87 @@
 #include <iostream>
-#include <cstring>
 #include <thread>
-#include <atomic>
+#include <string>
+#include <mutex>
 #include <netinet/in.h>
-#include <sys/socket.h>
+#include <arpa/inet.h>
 #include <unistd.h>
+#include <string.h>
 
-std::atomic<bool> running(true);
+using namespace std;
 
-// Funkcja do odbierania danych
-void receiveData(int socket) {
-    char buffer[1024];
-    while (running) {
-        memset(buffer, 0, sizeof(buffer));
-        ssize_t bytesReceived = recv(socket, buffer, sizeof(buffer) - 1, 0);
-        if (bytesReceived > 0) {
-            std::cout << "Received from server: " << buffer << std::endl;
-        } else if (bytesReceived == 0) {
-            std::cout << "Server closed the connection.\n";
-            running = false;
-            break;
-        } else {
-            std::cerr << "Error receiving data.\n";
-            running = false;
+#define SERVER_IP "127.0.0.1"
+#define SERVER_PORT 8080
+#define BUFFER_SIZE 2048
+
+int clientSocket;
+mutex mtx;
+
+// Wątek odbierający wiadomości od serwera
+void receiveMessages() {
+    char buffer[BUFFER_SIZE];
+    while (true) {
+        ssize_t bytesReceived = recv(clientSocket, buffer, sizeof(buffer) - 1, 0);
+        if (bytesReceived <= 0) {
+            cout << "\n[INFO] Disconnected from server.\n";
             break;
         }
+
+        buffer[bytesReceived] = '\0';
+
+        lock_guard<mutex> lock(mtx);
+        cout << "\n[SERVER] " << buffer << "\n";
     }
 }
 
-// Funkcja do wysyłania danych
-void sendData(int socket) {
-    std::string message;
-    while (running) {
-        std::getline(std::cin, message);
-        if (message == "exit") {
-            running = false;
-            break;
-        }
-        send(socket, message.c_str(), message.length(), 0);
-    }
+// Wysyłanie wiadomości do serwera
+void sendMessage(const string& msg) {
+    send(clientSocket, msg.c_str(), msg.length(), 0);
 }
 
 int main() {
-    // tworzenie gniazda
-    int clientSocket = socket(AF_INET, SOCK_STREAM, 0);
+    // Konfiguracja adresu serwera
+    sockaddr_in serverAddr{};
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_port = htons(SERVER_PORT);
+    inet_pton(AF_INET, SERVER_IP, &serverAddr.sin_addr);
+
+    // Tworzenie gniazda
+    clientSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (clientSocket < 0) {
-        std::cerr << "Socket creation failed.\n";
+        cerr << "Socket creation failed.\n";
         return 1;
     }
 
-    // określanie adresu serwera
-    sockaddr_in serverAddress;
-    serverAddress.sin_family = AF_INET;
-    serverAddress.sin_port = htons(8080);
-    serverAddress.sin_addr.s_addr = INADDR_ANY;
-
-    // połączenie z serwerem
-    if (connect(clientSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) < 0) {
-        std::cerr << "Connection failed.\n";
-        close(clientSocket);
+    // Próba połączenia z serwerem
+    if (connect(clientSocket, (sockaddr*)&serverAddr, sizeof(serverAddr)) < 0) {
+        cerr << "Connection failed.\n";
         return 1;
     }
 
-    std::cout << "Connected to server. Type 'exit' to quit.\n";
+    // Pobieranie imienia użytkownika i wysyłanie do serwera
+    string name;
+    cout << "Enter your name: ";
+    getline(cin, name);
+    sendMessage(name);
 
-    // uruchomienie wątków do wysyłania i odbierania
-    std::thread sender(sendData, clientSocket);
-    std::thread receiver(receiveData, clientSocket);
+    // Uruchomienie wątku odbierającego wiadomości
+    thread receiver(receiveMessages);
 
-    // czekamy na zakończenie obu wątków
-    sender.join();
+    // Główna pętla wysyłania wiadomości
+    string input;
+    while (true) {
+        cout << "\n> ";
+        getline(cin, input);
+
+        if (input == "\\exit") {
+            sendMessage(input);
+            break;
+        }
+
+        sendMessage(input);
+    }
+
     receiver.join();
-
-    // zamknięcie gniazda
     close(clientSocket);
-    std::cout << "Connection closed.\n";
-
     return 0;
 }
