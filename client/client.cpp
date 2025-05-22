@@ -3,6 +3,10 @@
 #include <string>
 #include <mutex>
 #include <fstream>
+#include <chrono>
+#include <ctime>
+#include <iomanip>
+#include <sstream>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
@@ -20,7 +24,16 @@ int clientSocket;
 mutex mtx;
 string userName;
 
-// Funkcja pomocnicza: zapisuje pojedynczy JSON do pliku
+// Zwraca timestamp jako string w formacie YYYY-MM-DD HH:MM:SS
+string getCurrentTimestamp() {
+    auto now = chrono::system_clock::now();
+    time_t timeNow = chrono::system_clock::to_time_t(now);
+    stringstream ss;
+    ss << put_time(localtime(&timeNow), "%Y-%m-%d %H:%M:%S");
+    return ss.str();
+}
+
+// Zapisuje wiadomość JSON do pliku o nazwie nadawcy
 void saveMessageToFile(const json& msg) {
     string sender = msg.value("sender", "unknown");
     string fileName = sender + ".json";
@@ -31,7 +44,7 @@ void saveMessageToFile(const json& msg) {
         outFile << msg.dump() << "\n";
         outFile.close();
     } else {
-        cerr << "Failed to open file: " << fileName << "\n";
+        cerr << "[ERROR] Could not write to file: " << fileName << "\n";
     }
 }
 
@@ -53,9 +66,9 @@ void receiveMessages() {
             string type = received.value("type", "unknown");
 
             if (type == "chat") {
-                cout << "\n[" << received["sender"] << "] "
+                cout << "\n[" << received["timestamp"] << "] "
+                     << received["sender"] << ": "
                      << received["message"] << "\n";
-
                 saveMessageToFile(received);
 
             } else if (type == "server_message") {
@@ -63,6 +76,7 @@ void receiveMessages() {
 
             } else if (type == "query") {
                 cout << "\n[QUERY] " << received["message"] << "\n";
+
             } else {
                 cout << "\n[UNKNOWN TYPE] " << buffer << "\n";
             }
@@ -73,9 +87,22 @@ void receiveMessages() {
     }
 }
 
-// Wysyłanie wiadomości do serwera
-void sendMessage(const string& msg) {
-    send(clientSocket, msg.c_str(), msg.length(), 0);
+// Wysyła wiadomość tekstową lub polecenie jako JSON
+void sendMessage(const string& content) {
+    json msg;
+
+    if (content.rfind("\\", 0) == 0) {  // polecenie (np. \exit, \users)
+        msg["type"] = "command";
+        msg["command"] = content;
+    } else {
+        msg["type"] = "chat";
+        msg["sender"] = userName;
+        msg["timestamp"] = getCurrentTimestamp();
+        msg["message"] = content;
+    }
+
+    string serialized = msg.dump();
+    send(clientSocket, serialized.c_str(), serialized.length(), 0);
 }
 
 int main() {
@@ -97,8 +124,14 @@ int main() {
 
     cout << "Enter your name: ";
     getline(cin, userName);
-    sendMessage(userName);  // Rejestrujemy się na serwerze
 
+    // Przesyłamy nazwę użytkownika jako pierwszy pakiet
+    json initMsg;
+    initMsg["type"] = "register";
+    initMsg["sender"] = userName;
+    send(clientSocket, initMsg.dump().c_str(), initMsg.dump().length(), 0);
+
+    // Wątek odbioru wiadomości
     thread receiver(receiveMessages);
 
     string input;
@@ -111,7 +144,7 @@ int main() {
             break;
         }
 
-        sendMessage(input);  // Na razie wysyłamy wiadomość jako czysty tekst
+        sendMessage(input);
     }
 
     receiver.join();
