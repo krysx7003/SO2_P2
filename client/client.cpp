@@ -23,14 +23,20 @@ using namespace std;
 int clientSocket;
 mutex mtx;
 string userName;
+vector<json> conversations;
 
 // Zwraca timestamp jako string w formacie YYYY-MM-DD HH:MM:SS
-string getCurrentTimestamp() {
+string logTime(){
     auto now = chrono::system_clock::now();
-    time_t timeNow = chrono::system_clock::to_time_t(now);
-    stringstream ss;
-    ss << put_time(localtime(&timeNow), "%Y-%m-%d %H:%M:%S");
-    return ss.str();
+    time_t time = chrono::system_clock::to_time_t(now);
+    tm tm = *localtime(&time);
+    ostringstream oss;
+    oss << "[" 
+        << std::put_time(&tm, "%d:%m:%Y")
+        << "|"    
+        << std::put_time(&tm, "%H:%M:%S") 
+        << "]";
+    return oss.str(); 
 }
 
 
@@ -56,9 +62,21 @@ void receiveMessages() {
                      << received["sender"].get<string>()<<": "
                      << received["text"].get<string>() <<" "
                      << "\n"<< flush;
+                for(json& conversation: conversations ){
+                    if( conversation["id"] == received["id"] ){
+                        conversation["messages_log"].push_back(received);
+                    }
+                }
+                
             } else if (type == "server_message") {
-                if( received["display"] == true ){
+                bool should_display = received["display"].get<bool>();
+                if( should_display ){
                     cout << "\n[SERVER] " << buffer << "\n";
+                }else{
+                    conversations.push_back(received);
+                    cout<< "id:"<< to_string( received["id"].get<int>() )
+                        << " users: "<< received["users"]
+                        <<"\n"<< flush;
                 }
             } else {
                 cout << "\n[UNKNOWN TYPE] " << buffer << "\n";
@@ -86,19 +104,50 @@ void sendMessage(const string& content) {
                 users_arr.push_back(user);
             }
             msg["users"] = users_arr;
-        }else{
+        }else if(command == "\\list"){
+            for(json conversation: conversations ){
+                cout<< "id:"<< to_string( conversation["id"].get<int>() )
+                    << " users: "<< conversation["users"]
+                    <<"\n"<< flush;
+            }
+        }else if(command == "\\history"){
+            string id;
+            getline(ss,id,' ');
+            for(json conversation: conversations ){
+                if( conversation["id"] == stoi(id) ){
+                    for (const auto& message : conversation["messages_log"]) {
+                        cout<< message["timestamp"].get<string>()
+                            << message["sender"].get<string>()<<": "
+                            << message["text"].get<string>() <<" "
+                            << "\n"<< flush;        
+                    }
+                }
+            }
+        }
+        else{
             getline(ss,message);
             msg["message"] = message;
         }
     } else {
         string id,message; 
+        json privateMsg;
         getline(ss,id,' ');
         
         getline(ss,message,' ');
-        msg["type"] = "message";
-        msg["command"] = "\\send";
+        msg["type"] = "chat";
         msg["id"] = stoi( id );
+        privateMsg = msg;
         msg["message"] = message;
+        msg["command"] = "\\send";
+        privateMsg["text"] = message;
+        privateMsg["timestamp"] = logTime();
+        privateMsg["sender"] = userName;
+        for(json& conversation: conversations ){
+            if( conversation["id"] == stoi(id) ){
+                conversation["messages_log"].push_back(privateMsg);
+            }
+        }
+             
     }
 
     string serialized = msg.dump();

@@ -33,7 +33,7 @@ using namespace std;
 vector<pthread_t> thread_pool;
 queue<client> cilent_pool;
 vector<client> client_table;
-mutex out,que,logT,jsonMtx,threadPool;
+mutex out,que,logT,jsonMtx,threadPool,msg;
 condition_variable condition_var;
 bool new_client = false;
 
@@ -265,6 +265,7 @@ int handleConnection( client currClient ){
                 }
                 message = {
                     { "sender", currClient.name },
+                    { "id", id },
                     { "timestamp", logTime() },
                     { "text", messageText },
                     { "type", "chat" }
@@ -283,7 +284,7 @@ int handleConnection( client currClient ){
 
         } else if( dataJson["command"] == "\\create" ){
             lock_guard<mutex> lock(jsonMtx);
-            json response; 
+            
 
             vector<string> users;
             
@@ -304,16 +305,12 @@ int handleConnection( client currClient ){
                 json data;
                 state_in >> data;
                 id = data["id"].get<int>();
-                response ={
-                    { "type", "server_message"},
-                    { "dispaly", true },
-                    { "message", "new converstation with id: " + to_string( id ) }
-                };
+                
             }
             
             json new_conversation = {
                 { "type", "server_message"},
-                { "dispaly", false },
+                { "display", false },
                 { "id", id },
                 { "users", users },
                 { "messages_log", {} }
@@ -351,11 +348,9 @@ int handleConnection( client currClient ){
             state_of << state_data.dump(4);
             state_of.close();
             logEvent( "Updated state.json with id: " + to_string( id ) );
-            sendJson(response.dump(4) ,currClient);
+            
+            sendMessage( new_conversation.dump() ,users);
             users.erase( users.begin() );
-
-            sendMessage( response, users );
-
         } else if( dataJson["command"] == "\\exit" ){
             lock_guard<mutex> lock(que);
             logEvent( "Disconnecting: " + currClient.name );
@@ -389,6 +384,7 @@ void sendJson( string name, client currClient ){
 }
 
 void sendMessage( string message, vector<string> names ){
+    lock_guard<mutex> lock(msg);
     for( client connected : client_table ){
         for( string name : names ){
             if( connected.name == name ){

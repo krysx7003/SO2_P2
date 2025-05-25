@@ -66,9 +66,27 @@ Po stronie klienta są dwa wątki główny (obsługuje input użytkownika), oraz
             "users": {lista_odbiorców}
         }
 
-4. W odpowiedzi wszyscy uczestnicy otrzymują id rozmowy w formacie
+4. W odpowiedzi wszyscy uczestnicy otrzymują rozmowę w formacie
 
-        \new_conversation {id}
+        {
+            "id": 0,
+            "messages_log": [
+                {
+                    "sender": "Test",
+                    "text": "Testowanie",
+                    "timestamp": "[19.05.2025|23:35:17]"
+                },
+                {
+                    "sender": "Test1",
+                    "text": "Testowanie strona 2",
+                    "timestamp": "[19.05.2025|23:36:03]"
+                }
+            ],
+            "users": [
+                "Test",
+                "Test1"
+            ]
+        }
 
 5. Żeby wysłać wiadomość należy wysłać z okna klienta (maksymalna wiadomość to 1024 znaki. Można zmienić chyba)
 
