@@ -12,5 +12,9 @@
             1
         ],
         "name": "Test1"
+    },
+    {
+        "conversation_id": null,
+        "name": "{\"sender\":\"Test\",\"type\":\"register\"}"
     }
 ]

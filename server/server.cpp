@@ -72,13 +72,14 @@ int main(){
 
     while(true){
         check( ( clientSocket = accept( serverSocket, nullptr, nullptr ) ), "Accept failed" );
-        string clientName = reciveMsg(clientSocket);
+        string data = reciveMsg(clientSocket);
+        json clientJson = json::parse(data);
+        string clientName = clientJson["sender"];
         client newClient = { clientSocket, clientName };
         {
             lock_guard<mutex> lock(jsonMtx);
             ifstream in_file( USER_FILE );
             json usersJson; 
-            newClient.name.erase(std::remove(newClient.name.begin(), newClient.name.end(), '\n'), newClient.name.end());
             if(in_file.good()){
                 in_file>>usersJson;
                 in_file.close();
@@ -217,17 +218,13 @@ string reciveMsg(int clientSocket){
 void handleConnection( client currClient ){
     while(true){
         string data = reciveMsg(currClient.socket);
+        json dataJson = json::parse(data);
         vector<string> client_names;
-        if( data.rfind("\\send") == 0 ){
+        if( dataJson["command"] == "\\send" ){
             lock_guard<mutex> lock(jsonMtx);
             string str;
-            stringstream ss(data);
-            //Skip \send command
-            getline(ss,str,' ');
-            getline(ss,str,' ');
-            int id = stoi(str);
-            string messageText;
-            getline( ss, messageText );
+            int id = dataJson["id"];
+            string messageText = dataJson["message"];
 
             ifstream in_file( CONV_DIR + "/" + to_string( id ) + ".json" );
             json conversation, message;
@@ -247,7 +244,8 @@ void handleConnection( client currClient ){
                 message = {
                     { "sender", currClient.name },
                     { "timestamp", logTime() },
-                    { "text", messageText }
+                    { "text", messageText },
+                    { "type", "chat" }
                 };
                 
                 conversation["messages_log"].push_back( message );
@@ -260,18 +258,16 @@ void handleConnection( client currClient ){
             string message_str = message.dump(4);
             sendMessage( message_str, client_names );
 
-        } else if( data.rfind("\\create") == 0 ){
+        } else if( dataJson["command"] == "\\create" ){
             lock_guard<mutex> lock(jsonMtx);
-            string response = to_string(-1);
+            json response; 
 
-            string str;
             vector<string> users;
-            stringstream ss(data);
-            //Skip \create command
-            getline(ss,str,' ');
-            while ( getline(ss,str,' ') ){
-                str.erase(std::remove(str.begin(), str.end(), '\n'), str.end());
-                users.push_back(str);
+            
+            if (dataJson["users"].is_array()) {  
+                for (const auto& user : dataJson["users"]) {
+                    users.push_back(user.get<string>()); 
+                }
             }
             int id = -1;
             
@@ -285,7 +281,10 @@ void handleConnection( client currClient ){
                 json data;
                 state_in >> data;
                 id = data["id"].get<int>();
-                response = "\\new_conversation " + to_string(id);
+                response ={
+                    { "type", "server_message"},
+                    { "message", "new converstation with id: " + to_string( id ) }
+                };
             }
             
             json new_conversation = {
@@ -326,12 +325,12 @@ void handleConnection( client currClient ){
             state_of << state_data.dump(4);
             state_of.close();
             logEvent( "Updated state.json with id: " + to_string( id ) );
-            check( send( currClient.socket , response.c_str(), response.length(), 0 ), "Send failed" );
+            sendJson(response.dump(4) ,currClient);
             users.erase( users.begin() );
 
             sendMessage( response, users );
 
-        } else if( data.rfind("\\exit") == 0 ){
+        } else if( dataJson["command"] == "\\exit" ){
             lock_guard<mutex> lock(que);
             logEvent( "Disconnecting: " + currClient.name );
             close(currClient.socket);

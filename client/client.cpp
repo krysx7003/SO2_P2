@@ -74,9 +74,6 @@ void receiveMessages() {
             } else if (type == "server_message") {
                 cout << "\n[SERVER] " << received["message"] << "\n";
 
-            } else if (type == "query") {
-                cout << "\n[QUERY] " << received["message"] << "\n";
-
             } else {
                 cout << "\n[UNKNOWN TYPE] " << buffer << "\n";
             }
@@ -90,15 +87,32 @@ void receiveMessages() {
 // Wysyła wiadomość tekstową lub polecenie jako JSON
 void sendMessage(const string& content) {
     json msg;
-
+    stringstream ss(content);
     if (content.rfind("\\", 0) == 0) {  // polecenie (np. \exit, \users)
+        string command,message; 
+        getline(ss,command,' ');
         msg["type"] = "command";
-        msg["command"] = content;
+        msg["command"] = command;
+        if(command == "\\create"){
+            json users_arr = json::array();
+            string user;
+            while(ss >> user){
+                users_arr.push_back(user);
+            }
+            msg["users"] = users_arr;
+        }else{
+            getline(ss,message);
+            msg["message"] = message;
+        }
     } else {
-        msg["type"] = "chat";
-        msg["sender"] = userName;
-        msg["timestamp"] = getCurrentTimestamp();
-        msg["message"] = content;
+        string id,message; 
+        getline(ss,id,' ');
+        
+        getline(ss,message,' ');
+        msg["type"] = "message";
+        msg["command"] = "\\send";
+        msg["id"] = stoi( id );
+        msg["message"] = message;
     }
 
     string serialized = msg.dump();

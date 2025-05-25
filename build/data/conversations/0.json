@@ -15,6 +15,12 @@
             "sender": "Test1",
             "text": "Test Test",
             "timestamp": "[21:21:25]"
+        },
+        {
+            "sender": "Test",
+            "text": "test",
+            "timestamp": "[25:05:2025|16:10:08]",
+            "type": "chat"
         }
     ],
     "users": [
