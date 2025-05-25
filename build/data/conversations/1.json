@@ -1,5 +1,6 @@
 {
     "type": "server_message",
+    "dispaly": false,
     "id": 1,
     "messages_log": [
         {

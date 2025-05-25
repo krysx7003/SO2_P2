@@ -74,8 +74,6 @@ int main(){
 
     while(true){
         check( ( clientSocket = accept( serverSocket, nullptr, nullptr ) ), "Accept failed" );
-        lock_guard<mutex> threadLock(threadPool);
-        cleanup_threads();
         pthread_t new_thread;
         pthread_create( &new_thread, NULL, thread_func, NULL);
         thread_pool.push_back(new_thread);
@@ -119,6 +117,7 @@ int main(){
             new_client = true;
             condition_var.notify_one();
         }
+        cleanup_threads();
     }
 
     close(serverSocket);
@@ -307,12 +306,14 @@ int handleConnection( client currClient ){
                 id = data["id"].get<int>();
                 response ={
                     { "type", "server_message"},
+                    { "dispaly", true },
                     { "message", "new converstation with id: " + to_string( id ) }
                 };
             }
             
             json new_conversation = {
                 { "type", "server_message"},
+                { "dispaly", false },
                 { "id", id },
                 { "users", users },
                 { "messages_log", {} }

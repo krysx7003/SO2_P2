@@ -1,4 +1,5 @@
 {
+    "dispaly": false,
     "id": 0,
     "messages_log": [
         {
@@ -68,6 +69,12 @@
             "sender": "Test1",
             "text": "fsdbgfiasdegbfjhasdbgfvjhase",
             "timestamp": "[25:05:2025|21:18:32]",
+            "type": "chat"
+        },
+        {
+            "sender": "Test",
+            "text": "tsadsa",
+            "timestamp": "[25:05:2025|21:28:01]",
             "type": "chat"
         }
     ],

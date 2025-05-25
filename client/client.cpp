@@ -66,14 +66,17 @@ void receiveMessages() {
             string type = received.value("type", "unknown");
 
             if (type == "chat") {
-                cout << "\n[" << received["timestamp"] << "] "
-                     << received["sender"] << ": "
-                     << received["text"] << "\n";
+                cout <<  received["timestamp"].dump()
+                     << received["sender"].dump()
+                     << received["text"].dump();
                 saveMessageToFile(received);
 
             } else if (type == "server_message") {
-                cout << "\n[SERVER] " << buffer << "\n";
-
+                if( received["display"] == true ){
+                    cout << "\n[SERVER] " << buffer << "\n";
+                }else{
+                    
+                }
             } else {
                 cout << "\n[UNKNOWN TYPE] " << buffer << "\n";
             }
