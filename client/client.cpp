@@ -68,11 +68,11 @@ void receiveMessages() {
             if (type == "chat") {
                 cout << "\n[" << received["timestamp"] << "] "
                      << received["sender"] << ": "
-                     << received["message"] << "\n";
+                     << received["text"] << "\n";
                 saveMessageToFile(received);
 
             } else if (type == "server_message") {
-                cout << "\n[SERVER] " << received["message"] << "\n";
+                cout << "\n[SERVER] " << buffer << "\n";
 
             } else {
                 cout << "\n[UNKNOWN TYPE] " << buffer << "\n";

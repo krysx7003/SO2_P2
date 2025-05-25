@@ -21,8 +21,57 @@
             "text": "test",
             "timestamp": "[25:05:2025|16:10:08]",
             "type": "chat"
+        },
+        {
+            "sender": "Test",
+            "text": "rasfdadasdasdasdasdfa",
+            "timestamp": "[25:05:2025|20:55:39]",
+            "type": "chat"
+        },
+        {
+            "sender": "Test1",
+            "text": "Testsasdsaasdasdasda",
+            "timestamp": "[25:05:2025|20:56:34]",
+            "type": "chat"
+        },
+        {
+            "sender": "Test",
+            "text": "ldlasldknasncsklx,czxczxcdfasdfasdf",
+            "timestamp": "[25:05:2025|21:09:04]",
+            "type": "chat"
+        },
+        {
+            "sender": "Test1",
+            "text": "trasdasda",
+            "timestamp": "[25:05:2025|21:10:26]",
+            "type": "chat"
+        },
+        {
+            "sender": "Test1",
+            "text": "tasdasdasdasd",
+            "timestamp": "[25:05:2025|21:12:48]",
+            "type": "chat"
+        },
+        {
+            "sender": "Test1",
+            "text": "eadsasda",
+            "timestamp": "[25:05:2025|21:17:10]",
+            "type": "chat"
+        },
+        {
+            "sender": "Test",
+            "text": "tsa;dmflasdhfkjasdhbnfkjsdf",
+            "timestamp": "[25:05:2025|21:18:25]",
+            "type": "chat"
+        },
+        {
+            "sender": "Test1",
+            "text": "fsdbgfiasdegbfjhasdbgfvjhase",
+            "timestamp": "[25:05:2025|21:18:32]",
+            "type": "chat"
         }
     ],
+    "type": "server_message",
     "users": [
         "Test",
         "Test1"

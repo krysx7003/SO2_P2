@@ -29,20 +29,22 @@ using namespace std;
 #define CONV_DIR filesystem::absolute("../data/conversations").string()
 #define STATE_FILE filesystem::absolute("../data/state.json").string()
 
-pthread_t thread_pool[THREAD_POOL_SIZE];
+// pthread_t thread_pool[THREAD_POOL_SIZE];
+vector<pthread_t> thread_pool;
 queue<client> cilent_pool;
 vector<client> client_table;
-mutex out,que,logT,jsonMtx;
+mutex out,que,logT,jsonMtx,threadPool;
 condition_variable condition_var;
 bool new_client = false;
 
 void check( int res, const char* message );
 void waitForExit();
 void* thread_func(void* args);
-void handleConnection(client cilentSocket);
+int handleConnection(client cilentSocket);
 string logTime();
 void logEvent(string message);
 void cleanup();
+void cleanup_threads();
 string reciveMsg(int clientSocket);
 json& findUser( string name, json& users );
 void sendJson( string name, client currClient );
@@ -53,7 +55,6 @@ int main(){
     logEvent( "Server starting" );
     
     for( int i = 0; i < THREAD_POOL_SIZE; i++ ){
-        pthread_create( &thread_pool[i], NULL, thread_func, NULL);
     }
 
     check( ( serverSocket = socket( AF_INET, SOCK_STREAM, 0 ) ),
@@ -73,6 +74,11 @@ int main(){
 
     while(true){
         check( ( clientSocket = accept( serverSocket, nullptr, nullptr ) ), "Accept failed" );
+        lock_guard<mutex> threadLock(threadPool);
+        cleanup_threads();
+        pthread_t new_thread;
+        pthread_create( &new_thread, NULL, thread_func, NULL);
+        thread_pool.push_back(new_thread);
         string data = reciveMsg(clientSocket);
         json clientJson = json::parse(data);
         string clientName = clientJson["sender"];
@@ -115,7 +121,6 @@ int main(){
         }
     }
 
-    close(clientSocket);
     close(serverSocket);
     cleanup();
     waitForExit();
@@ -131,6 +136,19 @@ json& findUser( string name, json& users ){
     }
     static json nullJson = nullptr;
     return nullJson;
+}
+
+void cleanup_threads() {
+    lock_guard<mutex> threadLock(threadPool);
+    auto it = thread_pool.begin();
+    while (it != thread_pool.end()) {
+        if (*it) {
+            pthread_join(thread_pool[it - thread_pool.begin()], nullptr);
+            it = thread_pool.erase(it);
+        } else {
+            ++it;
+        }
+    }
 }
 
 string logTime(){
@@ -197,9 +215,13 @@ void* thread_func(void* args){
             new_client = false;
         }
         if(currClient.socket != -1){
-            handleConnection(currClient);
+            int res = handleConnection(currClient);
+            if( res == -1 ){
+                break;
+            }
         }
     }
+    return nullptr;
 }
 
 string reciveMsg(int clientSocket){
@@ -216,7 +238,7 @@ string reciveMsg(int clientSocket){
     }
 }
 
-void handleConnection( client currClient ){
+int handleConnection( client currClient ){
     while(true){
         string data = reciveMsg(currClient.socket);
         json dataJson = json::parse(data);
@@ -258,6 +280,7 @@ void handleConnection( client currClient ){
 
             string message_str = message.dump(4);
             sendMessage( message_str, client_names );
+            logEvent(currClient.name + " to:" + to_string(id) + ": " + dataJson["message"].dump());
 
         } else if( dataJson["command"] == "\\create" ){
             lock_guard<mutex> lock(jsonMtx);
@@ -289,6 +312,7 @@ void handleConnection( client currClient ){
             }
             
             json new_conversation = {
+                { "type", "server_message"},
                 { "id", id },
                 { "users", users },
                 { "messages_log", {} }
@@ -343,12 +367,10 @@ void handleConnection( client currClient ){
                     ++it;
                 }
             }
-            break;
+            return -1;
         }
-        lock_guard<mutex> lock(que);
-        data.erase(std::remove(data.begin(), data.end(), '\n'), data.end());
-        logEvent(currClient.name + ": " + data);
     }
+    return 0;
 }
 
 void sendJson( string name, client currClient ){
