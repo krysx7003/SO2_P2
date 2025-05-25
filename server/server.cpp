@@ -117,7 +117,7 @@ int main(){
             new_client = true;
             condition_var.notify_one();
         }
-        cleanup_threads();
+        // cleanup_threads();
     }
 
     close(serverSocket);

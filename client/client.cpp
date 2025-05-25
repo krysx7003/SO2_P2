@@ -33,20 +33,6 @@ string getCurrentTimestamp() {
     return ss.str();
 }
 
-// Zapisuje wiadomość JSON do pliku o nazwie nadawcy
-void saveMessageToFile(const json& msg) {
-    string sender = msg.value("sender", "unknown");
-    string fileName = sender + ".json";
-
-    lock_guard<mutex> lock(mtx);
-    ofstream outFile(fileName, ios::app);
-    if (outFile.is_open()) {
-        outFile << msg.dump() << "\n";
-        outFile.close();
-    } else {
-        cerr << "[ERROR] Could not write to file: " << fileName << "\n";
-    }
-}
 
 // Wątek odbierający wiadomości od serwera
 void receiveMessages() {
@@ -66,16 +52,13 @@ void receiveMessages() {
             string type = received.value("type", "unknown");
 
             if (type == "chat") {
-                cout <<  received["timestamp"].dump()
-                     << received["sender"].dump()
-                     << received["text"].dump();
-                saveMessageToFile(received);
-
+                cout <<  received["timestamp"] <<" "
+                     << received["sender"] <<" "
+                     << received["text"] <<" "
+                     << "\n"<< flush;
             } else if (type == "server_message") {
                 if( received["display"] == true ){
                     cout << "\n[SERVER] " << buffer << "\n";
-                }else{
-                    
                 }
             } else {
                 cout << "\n[UNKNOWN TYPE] " << buffer << "\n";
