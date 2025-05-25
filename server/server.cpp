@@ -246,7 +246,7 @@ int handleConnection( client currClient ){
             lock_guard<mutex> lock(jsonMtx);
             string str;
             int id = dataJson["id"];
-            string messageText = dataJson["message"];
+            string messageText = dataJson["message"].get<string>();
 
             ifstream in_file( CONV_DIR + "/" + to_string( id ) + ".json" );
             json conversation, message;
@@ -277,9 +277,9 @@ int handleConnection( client currClient ){
                 of_file.close();
             }
 
-            string message_str = message.dump(4);
+            string message_str = message.dump();
             sendMessage( message_str, client_names );
-            logEvent(currClient.name + " to:" + to_string(id) + ": " + dataJson["message"].dump());
+            logEvent(currClient.name+ ":" + to_string(id) + ": " + dataJson["message"].get<string>());
 
         } else if( dataJson["command"] == "\\create" ){
             lock_guard<mutex> lock(jsonMtx);

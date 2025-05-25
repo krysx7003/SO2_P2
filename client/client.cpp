@@ -52,9 +52,9 @@ void receiveMessages() {
             string type = received.value("type", "unknown");
 
             if (type == "chat") {
-                cout <<  received["timestamp"] <<" "
-                     << received["sender"] <<" "
-                     << received["text"] <<" "
+                cout <<  received["timestamp"].get<string>()
+                     << received["sender"].get<string>()<<": "
+                     << received["text"].get<string>() <<" "
                      << "\n"<< flush;
             } else if (type == "server_message") {
                 if( received["display"] == true ){
